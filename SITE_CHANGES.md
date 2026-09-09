@@ -11,6 +11,13 @@ only for tokens matching the complete default style of both themes. Both options
 default to false; source text, line numbers, hidden/highlighted lines and metadata
 remain handled by Giallo.
 
+A standalone top-level `[TOC]` paragraph (case-insensitive) renders a static,
+nested table of contents using the same headings and anchors as `page.toc`.
+Escaped markers, code, raw HTML, nested blocks, and defined reference links remain
+literal. Source offsets distinguish escaped text from the actual marker. No
+headings means no empty navigation. Override `templates/toc.html` to customize
+the built-in markup; it receives `toc` and `lang`. Heading titles are escaped.
+
 `vendor/giallo` contains the published Giallo 0.5.2 crate plus the plain-span
 renderer change in `src/renderers/html.rs`. The original crate SHA-256 is
 `019550a7656d0e9fd71fe163b491ae053ee252d8761f0c55787bdfb393aca7c9`.
@@ -22,6 +29,7 @@ Build and check with Rust 1.95.0:
 ```sh
 cargo +1.95.0 build --release --locked
 cargo +1.95.0 test --release --locked -p markdown --lib compact::tests
+cargo +1.95.0 test --release --locked -p markdown --lib toc_marker
 ```
 
 The website repository owns CI builds, regression tests and binary caching.

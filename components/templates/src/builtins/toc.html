@@ -1,0 +1,4 @@
+{% component toc_items(items) %}
+<ul>{% for heading in items %}<li><a href="{{ heading.permalink }}">{{ heading.title }}</a>{% if heading.children %}{{ <toc_items items={heading.children} /> }}{% endif %}</li>{% endfor %}</ul>
+{% endcomponent %}
+{% if toc %}<nav class="article-toc" aria-label="Table of contents">{{ <toc_items items={toc} /> }}</nav>{% endif %}

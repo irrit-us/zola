@@ -281,6 +281,8 @@ pub struct State<'a> {
     /// Explicit heading IDs we've already processed (for collision detection)
     seen_explicit_ids: HashSet<String>,
     toc: Vec<Heading>,
+    /// Output events reserved for standalone, top-level [TOC] paragraphs.
+    toc_indices: Vec<usize>,
     /// At which event we've seen <!-- summary -->
     summary_index: Option<usize>,
     /// Internal links (@/) for validation: (target_path, optional_anchor).
@@ -320,17 +322,47 @@ impl<'a> State<'a> {
     }
 
     pub fn render(mut self, content: &'a str, ctx: &MarkdownContext) -> Result<Rendered> {
-        let events: Vec<_> = Parser::new_ext(content, ctx.options()).collect();
+        let events: Vec<_> = Parser::new_ext(content, ctx.options()).into_offset_iter().collect();
 
         // Pre-scan for explicit heading IDs to reserve them
-        for event in &events {
+        for (event, _) in &events {
             if let Event::Start(Tag::Heading { id: Some(explicit_id), .. }) = event {
                 self.anchors.insert(explicit_id.to_string());
             }
         }
 
         self.output.reserve(events.len());
-        for event in events {
+        let mut depth = 0usize;
+        let mut events = events.into_iter();
+        while let Some((event, range)) = events.next() {
+            if depth == 0
+                && matches!(event, Event::Start(Tag::Paragraph))
+                && content[range].trim().eq_ignore_ascii_case("[TOC]")
+            {
+                let mut paragraph = vec![event];
+                for (inner, _) in events.by_ref() {
+                    let end = matches!(inner, Event::End(TagEnd::Paragraph));
+                    paragraph.push(inner);
+                    if end {
+                        break;
+                    }
+                }
+                // A defined [TOC] reference link remains a link.
+                if paragraph[1..paragraph.len() - 1].iter().all(|e| matches!(e, Event::Text(_))) {
+                    self.toc_indices.push(self.output.len());
+                    self.push_html("");
+                } else {
+                    for inner in paragraph {
+                        self.process(inner, ctx);
+                    }
+                }
+                continue;
+            }
+            match &event {
+                Event::Start(_) => depth += 1,
+                Event::End(_) => depth = depth.saturating_sub(1),
+                _ => (),
+            }
             self.process(event, ctx);
         }
         self.finish(ctx)
@@ -701,6 +733,16 @@ impl<'a> State<'a> {
     }
 
     fn finish(mut self, ctx: &MarkdownContext) -> Result<Rendered> {
+        let toc = make_table_of_contents(std::mem::take(&mut self.toc));
+        if !self.toc_indices.is_empty() {
+            let mut context = tera::Context::new();
+            context.insert("toc", &toc);
+            context.insert("lang", &ctx.lang);
+            let html = ctx.tera.render("toc.html", &context)?;
+            for index in &self.toc_indices {
+                self.output[*index] = Event::Html(html.clone().into());
+            }
+        }
         self.render_footnotes(ctx);
         let summary = self.build_summary(ctx);
 
@@ -715,7 +757,7 @@ impl<'a> State<'a> {
         Ok(Rendered {
             body,
             summary,
-            toc: make_table_of_contents(self.toc),
+            toc,
             internal_links: self.internal_links,
             external_links: self.external_links,
         })
@@ -750,6 +792,64 @@ mod tests {
             current_path: "",
             insert_anchor: InsertAnchor::None,
         }
+    }
+
+    #[test]
+    fn toc_marker_renders_nested_headings_and_summary() {
+        let config = Config::default();
+        let tera = ZOLA_TERA.clone();
+        let permalinks = HashMap::new();
+        let ctx = make_context(&config, &tera, &permalinks);
+        let rendered = State::default().render(
+            "[TOC]\n\n<!-- more -->\n\n# 中文\n\n### **Child** & `<tag>` {#custom}\n\n# 中文\n\n[toc]\n", &ctx,
+        ).unwrap();
+        assert_eq!(rendered.body.matches("class=\"article-toc\"").count(), 2);
+        assert!(rendered.body.contains("href=\"#custom\">Child &amp; &lt;tag&gt;</a>"));
+        assert_eq!(rendered.toc[1].id, format!("{}-1", rendered.toc[0].id));
+        assert!(rendered.body.contains(&format!("href=\"{}\"", rendered.toc[1].permalink)));
+        assert!(rendered.body.contains("<ul><li><a href=\"#custom\""));
+        assert!(rendered.summary.unwrap().contains("article-toc"));
+    }
+
+    #[test]
+    fn toc_marker_preserves_literal_contexts() {
+        let config = Config::default();
+        let tera = ZOLA_TERA.clone();
+        let permalinks = HashMap::new();
+        let ctx = make_context(&config, &tera, &permalinks);
+        for literal in [
+            "`[TOC]`", "\\[TOC]", "[TOC] within a paragraph", "```text\n[TOC]\n```",
+            "    [TOC]", "> [TOC]", "- [TOC]", "<pre>[TOC]</pre>",
+            "[TOC]\n\n[TOC]: https://example.com/", "&#91;TOC]",
+        ] {
+            let markdown = format!("{literal}\n\n# Title\n");
+            let rendered = State::default().render(&markdown, &ctx).unwrap();
+            assert!(!rendered.body.contains("article-toc"), "{literal}");
+            assert!(rendered.body.contains("TOC"), "{literal}");
+        }
+    }
+
+    #[test]
+    fn toc_marker_without_headings_emits_no_empty_navigation() {
+        let config = Config::default();
+        let tera = ZOLA_TERA.clone();
+        let permalinks = HashMap::new();
+        let ctx = make_context(&config, &tera, &permalinks);
+        let rendered = State::default().render("[TOC]\n\nText only.", &ctx).unwrap();
+        assert!(!rendered.body.contains("<nav"));
+        assert!(!rendered.body.contains("[TOC]"));
+        assert!(rendered.body.contains("Text only."));
+    }
+
+    #[test]
+    fn toc_marker_supports_custom_template() {
+        let config = Config::default();
+        let mut tera = ZOLA_TERA.clone();
+        tera.add_raw_template("toc.html", "<aside>{{ lang }}:{{ toc[0].title }}</aside>").unwrap();
+        let permalinks = HashMap::new();
+        let ctx = make_context(&config, &tera, &permalinks);
+        let rendered = State::default().render("[TOC]\n\n# Custom", &ctx).unwrap();
+        assert!(rendered.body.contains("<aside>en:Custom</aside>"));
     }
 
     #[test]
