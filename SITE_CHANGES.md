@@ -24,6 +24,6 @@ cargo +1.95.0 build --release --locked
 cargo +1.95.0 test --release --locked -p markdown --lib compact::tests
 ```
 
-The website repository owns normal CI builds and binary caching. The upstream
-multi-platform test workflow is retained for manual runs; upstream documentation
-deployment and release-publication workflows are removed from this fork.
+The website repository owns CI builds, regression tests and binary caching.
+Upstream test, documentation deployment and release-publication workflows are
+removed from this source fork; use the commands above for standalone validation.
