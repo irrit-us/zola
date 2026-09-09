@@ -38,6 +38,9 @@ impl<'a> MarkdownContext<'a> {
         if self.config.markdown.github_alerts {
             opts.insert(Options::ENABLE_GFM);
         }
+        if self.config.markdown.render_math {
+            opts.insert(Options::ENABLE_MATH);
+        }
         opts
     }
 }

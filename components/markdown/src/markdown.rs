@@ -126,7 +126,7 @@ impl ImageBuffer {
         self.alt
             .iter()
             .filter_map(|e| match e {
-                Event::Text(t) | Event::Code(t) => Some(t.as_ref()),
+                Event::Text(t) | Event::Code(t) | Event::InlineMath(t) | Event::DisplayMath(t) => Some(t.as_ref()),
                 _ => None,
             })
             .collect()
@@ -236,7 +236,7 @@ impl HeadingBuffer {
         self.content
             .iter()
             .filter_map(|e| match e {
-                Event::Text(t) | Event::Code(t) => Some(t.as_ref()),
+                Event::Text(t) | Event::Code(t) | Event::InlineMath(t) | Event::DisplayMath(t) => Some(t.as_ref()),
                 _ => None,
             })
             .collect()
@@ -744,6 +744,16 @@ impl<'a> State<'a> {
             }
         }
         self.render_footnotes(ctx);
+        for event in &mut self.output {
+            let html = match event {
+                Event::InlineMath(text) => Some(format!(r#"<span class="math-inline">\({}\)</span>"#, escape_html_string(text))),
+                Event::DisplayMath(text) => Some(format!(r#"<span class="math-display">\[{}\]</span>"#, escape_html_string(text))),
+                _ => None,
+            };
+            if let Some(html) = html {
+                *event = Event::Html(html.into());
+            }
+        }
         let summary = self.build_summary(ctx);
 
         if !self.errors.is_empty() {
@@ -792,6 +802,37 @@ mod tests {
             current_path: "",
             insert_anchor: InsertAnchor::None,
         }
+    }
+
+    #[test]
+    fn math_markup_preserves_tex_and_escapes_html() {
+        let mut config = Config::default();
+        config.markdown.render_math = true;
+        config.markdown.smart_punctuation = true;
+        let tera = ZOLA_TERA.clone();
+        let permalinks = HashMap::new();
+        let ctx = make_context(&config, &tera, &permalinks);
+        let rendered = State::default().render(
+            "$a_i*b_j*c_k < n$\n\n$$\n\\left\\{\\begin{array}{l}x_1 \\\\\nx_2\\end{array}\\right.\n$$", &ctx,
+        ).unwrap();
+        assert!(rendered.body.contains(r"\(a_i*b_j*c_k &lt; n\)"));
+        assert!(rendered.body.contains("x_1 \\\\\nx_2"));
+        assert!(rendered.body.contains(r"\left\{"));
+        assert!(!rendered.body.contains("<em>"));
+    }
+
+    #[test]
+    fn math_markup_leaves_code_and_escaped_dollars_literal() {
+        let mut config = Config::default();
+        config.markdown.render_math = true;
+        let tera = ZOLA_TERA.clone();
+        let permalinks = HashMap::new();
+        let ctx = make_context(&config, &tera, &permalinks);
+        let rendered = State::default().render("`$x_i$`\n\n```text\n$$a*b*c$$\n```\n\n\\$cost", &ctx).unwrap();
+        assert!(!rendered.body.contains("class=\"math-"));
+        assert!(rendered.body.contains("$x_i$"));
+        assert!(rendered.body.contains("$$a*b*c$$"));
+        assert!(rendered.body.contains("$cost"));
     }
 
     #[test]

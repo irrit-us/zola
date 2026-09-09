@@ -172,6 +172,8 @@ pub struct Markdown {
     pub insert_anchor_links: InsertAnchor,
     /// Whether to enable GitHub-style alerts
     pub github_alerts: bool,
+    /// Preserve dollar-delimited TeX through Markdown parsing for MathJax.
+    pub render_math: bool,
 }
 
 impl Markdown {
@@ -243,6 +245,7 @@ impl Default for Markdown {
             lazy_async_image: false,
             insert_anchor_links: InsertAnchor::None,
             github_alerts: false,
+            render_math: false,
         }
     }
 }
