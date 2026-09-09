@@ -100,6 +100,8 @@ fn bench_with_highlighting(c: &mut Criterion) {
     let mut config = Config::default_for_test();
 
     let mut highlighting = Highlighting {
+        merge_highlight_tokens: false,
+        omit_plain_spans: false,
         error_on_missing_language: false,
         style: Default::default(),
         theme: Some("github-dark".to_string()),

@@ -176,6 +176,8 @@ mod tests {
     fn markdown_filter_use_config_options() {
         let mut config = Config::default();
         config.markdown.highlighting = Some(Highlighting {
+            merge_highlight_tokens: false,
+            omit_plain_spans: false,
             error_on_missing_language: false,
             style: HighlightStyle::Inline,
             theme: Some("github-dark".to_string()),

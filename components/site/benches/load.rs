@@ -23,6 +23,8 @@ fn bench_loading_small_blog_with_syntax_highlighting(c: &mut Criterion) {
     let mut site = Site::new(&path, &config_file).unwrap();
 
     let mut highlighting = Highlighting {
+        merge_highlight_tokens: false,
+        omit_plain_spans: false,
         error_on_missing_language: false,
         style: Default::default(),
         theme: Some("github-dark".to_string()),
@@ -60,6 +62,8 @@ fn bench_loading_small_kb_with_syntax_highlighting(c: &mut Criterion) {
     let mut site = Site::new(&path, &config_file).unwrap();
 
     let mut highlighting = Highlighting {
+        merge_highlight_tokens: false,
+        omit_plain_spans: false,
         error_on_missing_language: false,
         style: Default::default(),
         theme: Some("github-dark".to_string()),

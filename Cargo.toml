@@ -14,6 +14,7 @@ include = ["src/**/*", "LICENSE", "README.md"]
 
 [workspace]
 members = ["components/*"]
+exclude = ["vendor/giallo"]
 
 [workspace.package]
 version = "0.23.4"
@@ -117,7 +118,7 @@ unicode-segmentation = "1.2"
 url = "2"
 walkdir = "2"
 webp = "0.3"
-giallo = {version = "0.5", features = ["dump"]}
+giallo = {path = "vendor/giallo", version = "=0.5.2", features = ["dump"]}
 insta = "1"
 jiff = "0.2"
 memchr = "2.7.6"

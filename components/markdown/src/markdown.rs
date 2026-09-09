@@ -157,6 +157,7 @@ impl CodeBlock {
                 }
             }
             let renderer = HtmlRenderer {
+                omit_plain_spans: hl.omit_plain_spans,
                 other_metadata: self.fence.rest,
                 css_class_prefix: if hl.uses_classes() { Some("z-".to_string()) } else { None },
                 data_attr_position: ctx
@@ -178,7 +179,12 @@ impl CodeBlock {
             let out =
                 match hl.registry.highlight(&self.content, &hl.highlight_options(&self.fence.lang))
                 {
-                    Ok(highlighted) => renderer.render(&highlighted, &self.fence.options),
+                    Ok(mut highlighted) => {
+                        if hl.merge_highlight_tokens {
+                            crate::compact::merge_highlight_tokens(&mut highlighted.tokens);
+                        }
+                        renderer.render(&highlighted, &self.fence.options)
+                    }
                     Err(e) => {
                         err = Some(Error::msg(e));
                         format!("<pre><code>{}</code></pre>\n", escape_html_string(&self.content))

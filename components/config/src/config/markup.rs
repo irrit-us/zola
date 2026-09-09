@@ -18,6 +18,12 @@ pub enum HighlightStyle {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Highlighting {
+    /// Merge adjacent tokens only when their complete single/dual theme styles match.
+    #[serde(default)]
+    pub merge_highlight_tokens: bool,
+    /// Omit token spans that have the complete default style in both themes.
+    #[serde(default)]
+    pub omit_plain_spans: bool,
     /// Emit an error for missing highlight languages. Defaults to false
     #[serde(default)]
     pub error_on_missing_language: bool,
